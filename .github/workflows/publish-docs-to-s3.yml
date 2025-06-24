@@ -69,7 +69,7 @@ jobs:
       destination: ${{ steps.parameters.outputs.destination }}
       extra-build-options: ${{ steps.parameters.outputs.extra-build-options }}
       # yamllint disable rule:line-length
-      skip-write-to-stable-folder: ${{ inputs.skip-write-to-stable-folder == 'true' && '--skip-write-to-stable-folder' || '' }}
+      skip-write-to-stable-folder: ${{ inputs.skip-write-to-stable-folder && '--skip-write-to-stable-folder' || '' }}
     if: contains(fromJSON('[
       "ashb",
       "eladkal",
@@ -107,11 +107,6 @@ jobs:
           else
              echo "destination-location=s3://staging-docs-airflow-apache-org/docs/" >> ${GITHUB_OUTPUT}
           fi
-          if [[ "${REF}" =~ 2.* ]]; then
-             echo "extra-build-options=" >> ${GITHUB_OUTPUT}
-          else
-             echo "extra-build-options=--include-commits" >> ${GITHUB_OUTPUT}
-          fi
 
   build-docs:
     needs: [build-info]
@@ -122,7 +117,6 @@ jobs:
       GITHUB_REPOSITORY: ${{ github.repository }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GITHUB_USERNAME: ${{ github.actor }}
-      INCLUDE_NOT_READY_PROVIDERS: "true"
       INCLUDE_SUCCESS_OUTPUTS: false
       PYTHON_MAJOR_MINOR_VERSION: 3.9
       VERBOSE: "true"
@@ -133,7 +127,7 @@ jobs:
         run: docker run -v "${GITHUB_WORKSPACE}:/workspace" -u 0:0 bash -c "rm -rf /workspace/*"
       # Check out the repo first to run cleanup - in sub-folder
       - name: "Checkout current version first to clean-up stuff"
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
           path: current-version
@@ -144,10 +138,12 @@ jobs:
         # This will take longer as we need to rebuild CI image and it will not use cache
         # but it will build the CI image from the version of Airflow that is used to check out things
       - name: "Checkout ${{ inputs.ref }} "
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
           ref: ${{ inputs.ref }}
+          fetch-depth: 0
+          fetch-tags: true
       - name: "Install Breeze"
         uses: ./.github/actions/breeze
         with:
@@ -155,8 +151,9 @@ jobs:
       - name: "Building docs with --docs-only flag"
         env:
           INCLUDE_DOCS: ${{ needs.build-info.outputs.include-docs }}
+          INCLUDE_COMMITS: "true"
         run: >
-          breeze build-docs ${INCLUDE_DOCS} --docs-only ${EXTRA_BUILD_OPTIONS}
+          breeze build-docs ${INCLUDE_DOCS} --docs-only
       - name: Check disk space available
         run: df -H
       # Here we will create temp airflow-site dir to publish docs
@@ -170,7 +167,7 @@ jobs:
         run: >
           breeze release-management publish-docs --override-versioned --run-in-parallel ${INCLUDE_DOCS}
       - name: "Upload build docs"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: airflow-docs
           path: /mnt/airflow-site
@@ -189,7 +186,6 @@ jobs:
       GITHUB_REPOSITORY: ${{ github.repository }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GITHUB_USERNAME: ${{ github.actor }}
-      INCLUDE_NOT_READY_PROVIDERS: "true"
       INCLUDE_SUCCESS_OUTPUTS: false
       PYTHON_MAJOR_MINOR_VERSION: 3.9
       VERBOSE: "true"
@@ -201,7 +197,7 @@ jobs:
         # This will take longer as we need to rebuild CI image and it will not use cache
         # but it will build the CI image from the version of Airflow that is used to check out things
       - name: "Checkout ${{ inputs.ref }} "
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
       - name: "Prepare and cleanup runner"
@@ -211,7 +207,7 @@ jobs:
         with:
           use-uv: ${{ inputs.use-uv }}
       - name: "Download docs prepared as artifacts"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: airflow-docs
           path: /mnt/airflow-site
@@ -238,7 +234,7 @@ jobs:
           sudo /tmp/aws/install --update
           rm -rf /tmp/aws/
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@010d0da01d0b5a38af31e9c3470dbfdabdecca3a  # v4.0.1
+        uses: aws-actions/configure-aws-credentials@010d0da01d0b5a38af31e9c3470dbfdabdecca3a # v4.0.1
         with:
           aws-access-key-id: ${{ secrets.DOCS_AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.DOCS_AWS_SECRET_ACCESS_KEY }}
